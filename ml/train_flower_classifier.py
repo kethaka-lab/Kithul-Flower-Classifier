@@ -67,18 +67,21 @@ class_counts = np.bincount(labels[tr_idx])
 weights = (1.0 / class_counts)[labels[tr_idx]]
 sampler = WeightedRandomSampler(weights, num_samples=len(tr_idx), replacement=True)
 
-train_dl = DataLoader(Subset(full_train, tr_idx), batch_size=args.batch, sampler=sampler, num_workers=2)
-val_dl = DataLoader(Subset(full_eval, va_idx), batch_size=args.batch, num_workers=2)
-test_dl = DataLoader(Subset(full_eval, te_idx), batch_size=args.batch, num_workers=2)
+train_dl = DataLoader(Subset(full_train, tr_idx), batch_size=args.batch, sampler=sampler, num_workers=0)
+val_dl = DataLoader(Subset(full_eval, va_idx), batch_size=args.batch, num_workers=0)
+test_dl = DataLoader(Subset(full_eval, te_idx), batch_size=args.batch, num_workers=0)
 
 # Pretrained backbone, new head
-model = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.DEFAULT)
-model.classifier[1] = nn.Linear(model.classifier[1].in_features, len(classes))
+import timm
+model = timm.create_model("efficientnet_b0.ra_in1k", pretrained=True, num_classes=len(classes))
+nn.init.normal_(model.classifier.weight, std=0.01)
+nn.init.zeros_(model.classifier.bias)
 model.to(device)
 
 def set_backbone_trainable(flag):
-    for prm in model.features.parameters():
-        prm.requires_grad = flag
+    for name, prm in model.named_parameters():
+        if not name.startswith("classifier"):
+            prm.requires_grad = flag
 
 criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
@@ -98,7 +101,7 @@ def run_epoch(dl, opt=None):
             n += len(y)
     return loss_sum / n, correct / n
 
-best_acc, patience, bad = 0.0, 6, 0
+best_acc, best_loss, patience, bad = 0.0, float("inf"), 6, 0
 warmup = min(5, args.epochs)
 
 for epoch in range(args.epochs):
@@ -107,15 +110,15 @@ for epoch in range(args.epochs):
         opt = torch.optim.AdamW(model.classifier.parameters(), lr=args.lr)
     elif epoch == warmup:  # phase 2: fine-tune everything, lower LR
         set_backbone_trainable(True)
-        opt = torch.optim.AdamW(model.parameters(), lr=args.lr / 20)
+        opt = torch.optim.AdamW(model.classifier.parameters(), lr=args.lr)
         sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs - warmup)
     tl, ta = run_epoch(train_dl, opt)
     vl, va = run_epoch(val_dl)
     if epoch >= warmup:
         sched.step()
     print(f"epoch {epoch+1:02d} | train loss {tl:.3f} acc {ta:.3f} | val loss {vl:.3f} acc {va:.3f}")
-    if va > best_acc:
-        best_acc, bad = va, 0
+    if va > best_acc or (va == best_acc and vl < best_loss):
+        best_acc, best_loss, bad = va, vl, 0
         torch.save({"state_dict": model.state_dict(), "classes": classes, "img": args.img}, args.out)
     else:
         bad += 1
