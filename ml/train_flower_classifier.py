@@ -23,12 +23,20 @@ from sklearn.metrics import classification_report, confusion_matrix
 
 p = argparse.ArgumentParser()
 p.add_argument("--data", default="data")
+p.add_argument("--model", default="efficientnet_b0", choices=["efficientnet_b0", "resnet18", "resnet50"],
+               help="Model architecture: efficientnet_b0 | resnet18 | resnet50")
+p.add_argument("--splits", default="ml/splits.json", help="Path to stratified train/val/test split JSON")
 p.add_argument("--epochs", type=int, default=25)
 p.add_argument("--batch", type=int, default=32)
 p.add_argument("--img", type=int, default=224)
 p.add_argument("--lr", type=float, default=1e-3)
-p.add_argument("--out", default="flower_model.pt")
+p.add_argument("--out", default=None, help="Output weights file (defaults to ml/weights/<model_name>.pt)")
 args = p.parse_args()
+
+if args.out is None:
+    args.out = f"ml/weights/{args.model}.pt"
+
+Path(args.out).parent.mkdir(parents=True, exist_ok=True)
 
 SEED = 42
 random.seed(SEED); np.random.seed(SEED); torch.manual_seed(SEED)
@@ -50,17 +58,87 @@ eval_tf = transforms.Compose([
     transforms.Normalize(mean, std),
 ])
 
-# Two views of the same folder so train/val get different transforms
-full_train = datasets.ImageFolder(args.data, transform=train_tf)
-full_eval = datasets.ImageFolder(args.data, transform=eval_tf)
+# Custom dataset to only load true flower classes (coconut, date, kithul) and ignore evaluation folders like data/test
+from torch.utils.data import Dataset
+from torchvision.datasets.folder import default_loader, has_file_allowed_extension, IMG_EXTENSIONS
+
+class PalmFlowerDataset(Dataset):
+    def __init__(self, root_dir, transform=None):
+        self.root_dir = Path(root_dir)
+        self.transform = transform
+        self.loader = default_loader
+        # Only include actual flower class subdirectories
+        self.classes = sorted([d.name for d in self.root_dir.iterdir() if d.is_dir() and d.name.lower() != "test"])
+        self.class_to_idx = {c: i for i, c in enumerate(self.classes)}
+        self.samples = []
+        for c in self.classes:
+            cdir = self.root_dir / c
+            for f in sorted(cdir.iterdir()):
+                if f.is_file() and has_file_allowed_extension(f.name, IMG_EXTENSIONS):
+                    self.samples.append((str(f), self.class_to_idx[c]))
+        self.targets = [s[1] for s in self.samples]
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        path, target = self.samples[idx]
+        sample = self.loader(path)
+        if self.transform is not None:
+            sample = self.transform(sample)
+        return sample, target
+
+# Two views of the same dataset so train/val get different transforms
+full_train = PalmFlowerDataset(args.data, transform=train_tf)
+full_eval = PalmFlowerDataset(args.data, transform=eval_tf)
 classes = full_train.classes
 labels = np.array(full_train.targets)
 print("Classes:", classes, "| counts:", np.bincount(labels))
 
-# Stratified 70/15/15 split
-idx = np.arange(len(labels))
-tr_idx, tmp_idx = train_test_split(idx, test_size=0.30, stratify=labels, random_state=SEED)
-va_idx, te_idx = train_test_split(tmp_idx, test_size=0.50, stratify=labels[tmp_idx], random_state=SEED)
+# Reproducible split persistence
+splits_file = Path(args.splits)
+all_samples = full_train.samples  # list of (filepath, class_idx)
+path_to_idx = {Path(s[0]).resolve().as_posix(): idx for idx, s in enumerate(all_samples)}
+
+if splits_file.exists():
+    print(f"Loading existing split from {splits_file}...")
+    with open(splits_file, "r") as f:
+        splits_data = json.load(f)
+    
+    def resolve_indices(paths):
+        resolved = []
+        for p_str in paths:
+            norm_p = Path(p_str).resolve().as_posix()
+            if norm_p not in path_to_idx:
+                raise ValueError(f"File from {splits_file} not found in dataset '{args.data}': {p_str}")
+            resolved.append(path_to_idx[norm_p])
+        return resolved
+
+    tr_idx = resolve_indices(splits_data["train"])
+    va_idx = resolve_indices(splits_data["val"])
+    te_idx = resolve_indices(splits_data["test"])
+else:
+    print(f"Generating new reproducible 70/15/15 stratified split and saving to {splits_file}...")
+    idx = np.arange(len(labels))
+    tr_idx, tmp_idx = train_test_split(idx, test_size=0.30, stratify=labels, random_state=SEED)
+    va_idx, te_idx = train_test_split(tmp_idx, test_size=0.50, stratify=labels[tmp_idx], random_state=SEED)
+
+    tr_idx = tr_idx.tolist()
+    va_idx = va_idx.tolist()
+    te_idx = te_idx.tolist()
+
+    splits_file.parent.mkdir(parents=True, exist_ok=True)
+    splits_dict = {
+        "classes": classes,
+        "seed": SEED,
+        "train": [Path(all_samples[i][0]).as_posix() for i in tr_idx],
+        "val": [Path(all_samples[i][0]).as_posix() for i in va_idx],
+        "test": [Path(all_samples[i][0]).as_posix() for i in te_idx],
+    }
+    with open(splits_file, "w") as f:
+        json.dump(splits_dict, f, indent=2)
+
+print(f"Split size - Train: {len(tr_idx)}, Val: {len(va_idx)}, Test: {len(te_idx)}")
 
 # Balance classes in training (coconut data is likely to be the smallest)
 class_counts = np.bincount(labels[tr_idx])
@@ -71,16 +149,31 @@ train_dl = DataLoader(Subset(full_train, tr_idx), batch_size=args.batch, sampler
 val_dl = DataLoader(Subset(full_eval, va_idx), batch_size=args.batch, num_workers=0)
 test_dl = DataLoader(Subset(full_eval, te_idx), batch_size=args.batch, num_workers=0)
 
-# Pretrained backbone, new head
+# Pretrained backbone, new head via timm
 import timm
-model = timm.create_model("efficientnet_b0.ra_in1k", pretrained=True, num_classes=len(classes))
-nn.init.normal_(model.classifier.weight, std=0.01)
-nn.init.zeros_(model.classifier.bias)
+
+MODEL_NAME_MAP = {
+    "efficientnet_b0": "efficientnet_b0.ra_in1k",
+    "resnet18": "resnet18",
+    "resnet50": "resnet50",
+}
+
+timm_model_name = MODEL_NAME_MAP[args.model]
+print(f"Initializing {args.model} ({timm_model_name}) with pretrained weights...")
+model = timm.create_model(timm_model_name, pretrained=True, num_classes=len(classes))
+
+# Initialize classifier head
+clf = model.get_classifier()
+nn.init.normal_(clf.weight, std=0.01)
+if clf.bias is not None:
+    nn.init.zeros_(clf.bias)
 model.to(device)
 
+clf_param_ids = {id(p) for p in clf.parameters()}
+
 def set_backbone_trainable(flag):
-    for name, prm in model.named_parameters():
-        if not name.startswith("classifier"):
+    for prm in model.parameters():
+        if id(prm) not in clf_param_ids:
             prm.requires_grad = flag
 
 criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
@@ -107,10 +200,10 @@ warmup = min(5, args.epochs)
 for epoch in range(args.epochs):
     if epoch == 0:  # phase 1: train head only
         set_backbone_trainable(False)
-        opt = torch.optim.AdamW(model.classifier.parameters(), lr=args.lr)
+        opt = torch.optim.AdamW(clf.parameters(), lr=args.lr)
     elif epoch == warmup:  # phase 2: fine-tune everything, lower LR
         set_backbone_trainable(True)
-        opt = torch.optim.AdamW(model.classifier.parameters(), lr=args.lr)
+        opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
         sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs - warmup)
     tl, ta = run_epoch(train_dl, opt)
     vl, va = run_epoch(val_dl)
@@ -119,7 +212,12 @@ for epoch in range(args.epochs):
     print(f"epoch {epoch+1:02d} | train loss {tl:.3f} acc {ta:.3f} | val loss {vl:.3f} acc {va:.3f}")
     if va > best_acc or (va == best_acc and vl < best_loss):
         best_acc, best_loss, bad = va, vl, 0
-        torch.save({"state_dict": model.state_dict(), "classes": classes, "img": args.img}, args.out)
+        torch.save({
+            "model_name": args.model,
+            "state_dict": model.state_dict(),
+            "classes": classes,
+            "img": args.img,
+        }, args.out)
     else:
         bad += 1
         if bad >= patience and epoch >= warmup:
@@ -136,4 +234,3 @@ with torch.no_grad():
 print("\nTest results")
 print(classification_report(y_true, y_pred, target_names=classes, digits=3))
 print("Confusion matrix:\n", confusion_matrix(y_true, y_pred))
-json.dump(classes, open("classes.json", "w"))
