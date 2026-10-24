@@ -182,6 +182,7 @@ def run_epoch(dl, opt=None):
     train = opt is not None
     model.train(train)
     loss_sum, correct, n = 0.0, 0, 0
+    all_y, all_preds = [], []
     with torch.set_grad_enabled(train):
         for x, y in dl:
             x, y = x.to(device), y.to(device)
@@ -190,38 +191,85 @@ def run_epoch(dl, opt=None):
             if train:
                 opt.zero_grad(); loss.backward(); opt.step()
             loss_sum += loss.item() * len(y)
-            correct += (out.argmax(1) == y).sum().item()
+            preds = out.argmax(1)
+            correct += (preds == y).sum().item()
             n += len(y)
-    return loss_sum / n, correct / n
+            all_y.extend(y.cpu().tolist())
+            all_preds.extend(preds.cpu().tolist())
+    
+    from sklearn.metrics import f1_score
+    macro_f1 = float(f1_score(all_y, all_preds, average="macro", zero_division=0))
+    return loss_sum / n, correct / n, macro_f1
 
-best_acc, best_loss, patience, bad = 0.0, float("inf"), 6, 0
+best_f1, best_loss, patience, bad = -1.0, float("inf"), 6, 0
+saved_epoch = -1
 warmup = min(5, args.epochs)
+phase2_min_epochs = 8
+
+log_dir = Path("ml/results")
+log_dir.mkdir(parents=True, exist_ok=True)
+log_file = log_dir / f"train_{args.model}.log"
+log_lines = []
+header = f"Training log for {args.model} (epochs={args.epochs}, lr={args.lr}, batch={args.batch})"
+print(header)
+log_lines.append(header)
+log_lines.append("epoch,phase,train_loss,train_acc,train_f1,val_loss,val_acc,val_f1,saved")
 
 for epoch in range(args.epochs):
+    phase = 1 if epoch < warmup else 2
     if epoch == 0:  # phase 1: train head only
         set_backbone_trainable(False)
         opt = torch.optim.AdamW(clf.parameters(), lr=args.lr)
-    elif epoch == warmup:  # phase 2: fine-tune everything, lower LR
+    elif epoch == warmup:  # phase 2: fine-tune everything with discriminative learning rates
         set_backbone_trainable(True)
-        opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
+        backbone_params = [p for p in model.parameters() if id(p) not in clf_param_ids]
+        opt = torch.optim.AdamW([
+            {"params": backbone_params, "lr": args.lr / 20},
+            {"params": clf.parameters(), "lr": args.lr},
+        ])
         sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs - warmup)
-    tl, ta = run_epoch(train_dl, opt)
-    vl, va = run_epoch(val_dl)
+        # Reset patience counter for Phase 2
+        bad = 0
+
+    tl, ta, tf1 = run_epoch(train_dl, opt)
+    vl, va, vf1 = run_epoch(val_dl)
     if epoch >= warmup:
         sched.step()
-    print(f"epoch {epoch+1:02d} | train loss {tl:.3f} acc {ta:.3f} | val loss {vl:.3f} acc {va:.3f}")
-    if va > best_acc or (va == best_acc and vl < best_loss):
-        best_acc, best_loss, bad = va, vl, 0
+
+    epoch_saved = False
+    if vf1 > best_f1 or (abs(vf1 - best_f1) < 1e-6 and vl < best_loss):
+        best_f1, best_loss, bad = vf1, vl, 0
+        saved_epoch = epoch + 1
+        epoch_saved = True
         torch.save({
             "model_name": args.model,
             "state_dict": model.state_dict(),
             "classes": classes,
             "img": args.img,
+            "epoch": saved_epoch,
+            "phase": phase,
+            "val_f1": best_f1,
+            "val_loss": best_loss,
+            "val_acc": va,
         }, args.out)
     else:
         bad += 1
-        if bad >= patience and epoch >= warmup:
-            print("Early stopping"); break
+        # Early stopping condition: must be in Phase 2 and have completed at least 8 epochs of Phase 2
+        phase2_epochs_run = (epoch + 1) - warmup
+        if bad >= patience and epoch >= warmup and phase2_epochs_run >= phase2_min_epochs:
+            print(f"Early stopping at epoch {epoch+1:02d} (Phase 2 ran {phase2_epochs_run} epochs)")
+            break
+
+    status_str = f"epoch {epoch+1:02d} (P{phase}) | train loss {tl:.3f} acc {ta:.3f} f1 {tf1:.3f} | val loss {vl:.3f} acc {va:.3f} f1 {vf1:.3f}{' [SAVED]' if epoch_saved else ''}"
+    print(status_str)
+    log_lines.append(f"{epoch+1},{phase},{tl:.4f},{ta:.4f},{tf1:.4f},{vl:.4f},{va:.4f},{vf1:.4f},{epoch_saved}")
+
+with open(log_file, "w") as f:
+    f.write("\n".join(log_lines) + "\n")
+
+print(f"\nTraining completed. Saved checkpoint is from Epoch {saved_epoch} (val macro-F1: {best_f1:.3f}, val loss: {best_loss:.3f}).")
+if saved_epoch <= warmup:
+    print(f"⚠️  WARNING: Saved checkpoint is from Epoch {saved_epoch} (frozen warm-up Phase 1)! The unfreeze phase did not yield a better validation score.")
 
 # Final evaluation on the untouched test split
 ckpt = torch.load(args.out, map_location=device)

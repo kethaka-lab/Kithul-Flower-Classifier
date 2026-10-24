@@ -6,3 +6,4 @@ node_modules/
 /junk
 .env
 *.pth
+demo_test_images/

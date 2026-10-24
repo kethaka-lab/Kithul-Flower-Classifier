@@ -1,0 +1,243 @@
+{
+  "dataset_summary": {
+    "num_test_images": 55,
+    "num_junk_images": 33,
+    "classes": [
+      "coconut",
+      "date",
+      "kithul"
+    ],
+    "test_class_distribution": {
+      "coconut": 10,
+      "date": 33,
+      "kithul": 12
+    }
+  },
+  "models": {
+    "efficientnet_b0": {
+      "name": "EfficientNet-B0",
+      "timm_name": "efficientnet_b0.ra_in1k",
+      "weights_path": "ml\\weights\\efficientnet_b0.pt",
+      "file_size_mb": 15.58,
+      "parameter_count": 4011391,
+      "avg_cpu_latency_ms": 51.03,
+      "p95_cpu_latency_ms": 107.32,
+      "accuracy": 0.8909,
+      "classification_report": {
+        "coconut": {
+          "precision": 0.6923076923076923,
+          "recall": 0.9,
+          "f1-score": 0.782608695652174,
+          "support": 10.0
+        },
+        "date": {
+          "precision": 0.967741935483871,
+          "recall": 0.9090909090909091,
+          "f1-score": 0.9375,
+          "support": 33.0
+        },
+        "kithul": {
+          "precision": 0.9090909090909091,
+          "recall": 0.8333333333333334,
+          "f1-score": 0.8695652173913043,
+          "support": 12.0
+        },
+        "accuracy": 0.8909090909090909,
+        "macro avg": {
+          "precision": 0.8563801789608241,
+          "recall": 0.8808080808080808,
+          "f1-score": 0.8632246376811593,
+          "support": 55.0
+        },
+        "weighted avg": {
+          "precision": 0.9048663946024649,
+          "recall": 0.8909090909090909,
+          "f1-score": 0.8945158102766798,
+          "support": 55.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          9,
+          1,
+          0
+        ],
+        [
+          2,
+          30,
+          1
+        ],
+        [
+          2,
+          0,
+          10
+        ]
+      ],
+      "cm_image_path": "ml\\results\\cm_efficientnet_b0.png",
+      "rejection": {
+        "real_max_logit_mean": 1.325,
+        "real_max_logit_std": 0.631,
+        "real_max_logit_min": -0.203,
+        "junk_max_logit_mean": 0.512,
+        "junk_max_logit_std": 0.275,
+        "junk_max_logit_max": 1.346,
+        "auroc": 0.8722,
+        "tau_95_threshold": 0.229,
+        "real_retention_at_tau95": 0.9455,
+        "junk_accepted_count": 28,
+        "junk_total_count": 33,
+        "junk_accepted_rate": 0.8485
+      }
+    },
+    "resnet18": {
+      "name": "ResNet-18",
+      "timm_name": "resnet18",
+      "weights_path": "ml\\weights\\resnet18.pt",
+      "file_size_mb": 42.72,
+      "parameter_count": 11178051,
+      "avg_cpu_latency_ms": 58.19,
+      "p95_cpu_latency_ms": 76.28,
+      "accuracy": 0.9273,
+      "classification_report": {
+        "coconut": {
+          "precision": 0.75,
+          "recall": 0.9,
+          "f1-score": 0.8181818181818182,
+          "support": 10.0
+        },
+        "date": {
+          "precision": 0.9696969696969697,
+          "recall": 0.9696969696969697,
+          "f1-score": 0.9696969696969697,
+          "support": 33.0
+        },
+        "kithul": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1-score": 0.9090909090909091,
+          "support": 12.0
+        },
+        "accuracy": 0.9272727272727272,
+        "macro avg": {
+          "precision": 0.9065656565656566,
+          "recall": 0.901010101010101,
+          "f1-score": 0.8989898989898991,
+          "support": 55.0
+        },
+        "weighted avg": {
+          "precision": 0.9363636363636364,
+          "recall": 0.9272727272727272,
+          "f1-score": 0.9289256198347107,
+          "support": 55.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          9,
+          1,
+          0
+        ],
+        [
+          1,
+          32,
+          0
+        ],
+        [
+          2,
+          0,
+          10
+        ]
+      ],
+      "cm_image_path": "ml\\results\\cm_resnet18.png",
+      "rejection": {
+        "real_max_logit_mean": 0.994,
+        "real_max_logit_std": 0.453,
+        "real_max_logit_min": -0.042,
+        "junk_max_logit_mean": 0.288,
+        "junk_max_logit_std": 0.294,
+        "junk_max_logit_max": 1.483,
+        "auroc": 0.8915,
+        "tau_95_threshold": 0.125,
+        "real_retention_at_tau95": 0.9455,
+        "junk_accepted_count": 22,
+        "junk_total_count": 33,
+        "junk_accepted_rate": 0.6667
+      }
+    },
+    "resnet50": {
+      "name": "ResNet-50",
+      "timm_name": "resnet50",
+      "weights_path": "ml\\weights\\resnet50.pt",
+      "file_size_mb": 90.0,
+      "parameter_count": 23514179,
+      "avg_cpu_latency_ms": 144.82,
+      "p95_cpu_latency_ms": 191.51,
+      "accuracy": 0.8182,
+      "classification_report": {
+        "coconut": {
+          "precision": 0.5,
+          "recall": 0.9,
+          "f1-score": 0.6428571428571429,
+          "support": 10.0
+        },
+        "date": {
+          "precision": 0.9629629629629629,
+          "recall": 0.7878787878787878,
+          "f1-score": 0.8666666666666667,
+          "support": 33.0
+        },
+        "kithul": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1-score": 0.9090909090909091,
+          "support": 12.0
+        },
+        "accuracy": 0.8181818181818182,
+        "macro avg": {
+          "precision": 0.8209876543209876,
+          "recall": 0.8404040404040405,
+          "f1-score": 0.8062049062049063,
+          "support": 55.0
+        },
+        "weighted avg": {
+          "precision": 0.8868686868686868,
+          "recall": 0.8181818181818182,
+          "f1-score": 0.8352302243211335,
+          "support": 55.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          9,
+          1,
+          0
+        ],
+        [
+          7,
+          26,
+          0
+        ],
+        [
+          2,
+          0,
+          10
+        ]
+      ],
+      "cm_image_path": "ml\\results\\cm_resnet50.png",
+      "rejection": {
+        "real_max_logit_mean": 0.594,
+        "real_max_logit_std": 0.41,
+        "real_max_logit_min": -0.074,
+        "junk_max_logit_mean": 0.291,
+        "junk_max_logit_std": 0.211,
+        "junk_max_logit_max": 0.972,
+        "auroc": 0.724,
+        "tau_95_threshold": -0.014,
+        "real_retention_at_tau95": 0.9455,
+        "junk_accepted_count": 32,
+        "junk_total_count": 33,
+        "junk_accepted_rate": 0.9697
+      }
+    }
+  }
+}
