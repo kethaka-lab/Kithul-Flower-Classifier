@@ -3,3 +3,6 @@ __pycache__/
 data/
 *.pt
 node_modules/
+/junk
+.env
+*.pth

@@ -7,6 +7,7 @@ Run from the project root (with the venv active):
 Then open http://127.0.0.1:8000/docs and use POST /predict to upload an image.
 """
 import io
+import json
 import os
 from pathlib import Path
 
@@ -19,7 +20,7 @@ from torchvision import transforms
 
 # Model file lives in the project root by default; override with MODEL_PATH.
 MODEL_PATH = Path(os.getenv("MODEL_PATH", Path(__file__).resolve().parent.parent / "flower_model.pt"))
-CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.60"))
+CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.75"))
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
 app = FastAPI(title="Palm Flower Classifier")
@@ -31,6 +32,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def add_no_cache_headers(request, call_next):
+    response = await call_next(request)
+    if any(request.url.path.endswith(ext) for ext in [".html", ".js", ".css"]) or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model = None
@@ -58,17 +68,33 @@ def load_model():
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
     ])
 
-@app.get("/")
-def read_root():
-    return {
-        "message": "Welcome to the Kithul Flower Classifier API!",
-        "docs": "/docs",
-        "health": "/health"
-    }
-    
 @app.get("/health")
 def health():
     return {"status": "ok", "classes": classes, "device": device}
+
+
+DEFAULT_THRESHOLDS = {"MAX_LOGIT_MIN": 0.60, "MARGIN_MIN": 0.20}
+
+
+def get_thresholds():
+    """Load MAX_LOGIT_MIN and MARGIN_MIN from config file (backend/thresholds.json) with safe defaults."""
+    candidates = [
+        Path(__file__).resolve().parent / "thresholds.json",
+        MODEL_PATH.parent / "thresholds.json",
+        MODEL_PATH.parent / "backend" / "thresholds.json",
+    ]
+    for path in candidates:
+        if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return {
+                        "MAX_LOGIT_MIN": float(data.get("MAX_LOGIT_MIN", DEFAULT_THRESHOLDS["MAX_LOGIT_MIN"])),
+                        "MARGIN_MIN": float(data.get("MARGIN_MIN", DEFAULT_THRESHOLDS["MARGIN_MIN"])),
+                    }
+            except Exception:
+                pass
+    return DEFAULT_THRESHOLDS
 
 
 @app.post("/predict")
@@ -82,14 +108,44 @@ async def predict(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="That file is not a readable image.")
 
     x = transform(image).unsqueeze(0).to(device)
+    model.eval()
     with torch.no_grad():
-        probs = torch.softmax(model(x), dim=1)[0].cpu().tolist()
+        logits = model(x)
+        probs_tensor = torch.softmax(logits, dim=1)[0]
+        top2 = torch.topk(probs_tensor, 2).values
+        probs = probs_tensor.cpu().tolist()
+
+    max_logit = logits.max().item()
+    margin = (top2[0] - top2[1]).item()
 
     ranked = sorted(zip(classes, probs), key=lambda p: p[1], reverse=True)
-    top_label, top_conf = ranked[0]
+    top_label = ranked[0][0]
+
+    thresholds = get_thresholds()
+    max_logit_min = thresholds["MAX_LOGIT_MIN"]
+    margin_min = thresholds["MARGIN_MIN"]
+
+    if max_logit < max_logit_min or margin < margin_min:
+        status = "uncertain"
+        label = None
+    else:
+        status = "ok"
+        label = top_label
+
     return {
-        "prediction": top_label,
-        "confidence": round(top_conf, 4),
-        "confident": top_conf >= CONFIDENCE_THRESHOLD,
-        "probabilities": {label: round(p, 4) for label, p in ranked},
+        "status": status,
+        "label": label,
+        "prediction": label if label is not None else "uncertain",
+        "confident": (status == "ok"),
+        "probabilities": {cls: round(p, 4) for cls, p in ranked},
+        "max_logit": round(max_logit, 4),
+        "margin": round(margin, 4),
     }
+
+
+# Mount the frontend directory so visiting http://127.0.0.1:8000 loads the demo UI
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+if FRONTEND_DIR.exists():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+
