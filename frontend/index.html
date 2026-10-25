@@ -4,13 +4,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kithul Flower Classifier • AI Botanical Vision</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
-    rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2">
+  <title>Kethaka • Palm Flower Classification for Kithul Palms</title>
+  <link rel="icon" type="image/svg+xml" href="assets/kethaka-icon.svg">
+  <link rel="stylesheet" href="fonts/montserrat-local.css">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 
 <body>
@@ -22,17 +19,21 @@
     <header class="app-header">
       <div class="brand-row">
         <div class="brand-badge">
-          <span class="leaf-icon">🌿</span>
-          <span class="badge-text">Botanical AI Vision</span>
+          <img src="assets/kethaka-icon.svg" alt="Kethaka Mark" class="brand-mark-img">
+          <span class="badge-text">Botanical Vision</span>
         </div>
         <div id="api-status" class="api-status status-connecting">
           <span class="status-dot"></span>
           <span class="status-label">Checking Backend...</span>
         </div>
       </div>
-      <h1 class="main-title">Kithul Flower <span>Classifier</span></h1>
-      <p class="subtitle">Instant deep-learning classification for Kithul (<em>Caryota urens</em>), Coconut, and Date
-        palm inflorescences.</p>
+
+      <div class="logo-wrapper">
+        <img src="assets/kethaka-logo.svg" alt="Kethaka" class="main-logo-img">
+      </div>
+
+      <p class="tagline">Precision Sap. Preserved Future.</p>
+      <p class="descriptor">Palm flower classification for Kithul palms</p>
     </header>
 
     <!-- Main Grid -->
@@ -49,7 +50,7 @@
 
           <div id="dropzone-prompt" class="dropzone-prompt">
             <div class="upload-icon-circle">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="17 8 12 3 7 8"></polyline>
                 <line x1="12" y1="3" x2="12" y2="15"></line>
@@ -62,7 +63,7 @@
           <div id="preview-wrapper" class="preview-wrapper hidden">
             <img id="image-preview" src="" alt="Flower Preview" class="image-preview">
             <button id="btn-change-image" class="btn-change-image" title="Choose another image">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
                 <path d="M3 3v5h5"></path>
                 <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
@@ -75,7 +76,7 @@
 
         <!-- Sample Flower Quick Select -->
         <div class="quick-samples">
-          <span class="samples-title">⚡ Or test with sample flowers:</span>
+          <span class="samples-title">Test with sample flowers:</span>
           <div class="samples-group">
             <button class="sample-btn" data-sample="kithul" id="sample-kithul">
               <span class="sample-dot dot-kithul"></span>
@@ -97,70 +98,143 @@
           <span class="btn-text">Classify Flower</span>
           <span class="btn-spinner hidden"></span>
         </button>
+
+        <!-- Scope Note -->
+        <div class="model-scope-note">
+          <svg class="scope-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span>Trained on Kithul, Coconut, and Date palm flowers only. Unfamiliar flowers are automatically rejected.</span>
+        </div>
       </section>
 
       <!-- Right Column: Results & Analysis -->
       <section class="card results-card">
         <div class="card-header">
-          <h2 class="card-title">2. Classification Results</h2>
-          <span id="model-tag" class="model-tag">EfficientNet-B0</span>
+          <h2 class="card-title">2. Classification Results (All Models)</h2>
+          <span class="model-tag">Multi-Model Vision</span>
         </div>
 
         <!-- Placeholder when no image is analyzed yet -->
         <div id="results-placeholder" class="results-placeholder">
+          <div class="placeholder-icon-circle">
+            <img src="assets/kethaka-icon.svg" alt="Kethaka Mark" class="placeholder-logo-img">
+          </div>
           <h3>Ready for Classification</h3>
-          <p>Upload a flower photo or pick a sample on the left to see the AI classification and confidence breakdown.
-          </p>
+          <p>Upload a flower photo or choose a sample on the left to see side-by-side predictions across EfficientNet-B0, ResNet-18, and ResNet-50.</p>
         </div>
 
-        <!-- Active Results Panel -->
+        <!-- Error Message Banner -->
+        <div id="error-banner" class="error-banner hidden">
+          <div class="error-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+          <div class="error-body">
+            <h4 class="error-title" id="error-title">Backend Offline</h4>
+            <p class="error-desc" id="error-desc">Unable to reach the server. Please check your backend connection.</p>
+          </div>
+        </div>
+
+        <!-- Active Multi-Model Results Panel -->
         <div id="results-active" class="results-active hidden">
-          <!-- Primary Outcome Banner -->
-          <div class="top-result-banner" id="top-result-banner">
-            <div class="result-header-row">
-              <span class="result-tag" id="result-status-tag">High Confidence</span>
-              <span class="result-confidence-val" id="top-confidence-val">--%</span>
-            </div>
-            <h3 class="predicted-name" id="predicted-name">Analyzing...</h3>
-            <p class="predicted-scientific" id="predicted-scientific"></p>
-            <!-- Collapsible details for uncertain / out-of-distribution results -->
-            <details id="uncertain-details" class="uncertain-details hidden">
-              <summary class="uncertain-details-summary">Show details</summary>
-              <div class="uncertain-details-content" id="uncertain-details-text"></div>
-            </details>
-          </div>
-
-          <!-- Botanical Profile Card -->
-          <div class="botanical-info" id="botanical-info">
-            <h4 class="botanical-title">Botanical Characteristics:</h4>
-            <p class="botanical-desc" id="botanical-desc"></p>
-          </div>
-
-          <!-- Model Scope Note -->
-          <div class="model-scope-note" id="model-scope-note">
-            <span class="scope-icon">ℹ️</span>
-            <span>This model is trained on Kithul, Coconut, and Date palm flowers only.</span>
-          </div>
-
-          <!-- Probability Distribution Bars -->
-          <div class="probabilities-container" id="probabilities-container">
-            <h4 class="prob-heading" id="prob-heading">Confidence Distribution</h4>
-            <div id="prob-bars-list" class="prob-bars-list">
-              <!-- Dynamically rendered -->
-            </div>
+          <div id="multi-cards-grid" class="multi-cards-grid">
+            <!-- Dynamically populated 3 cards -->
           </div>
         </div>
       </section>
     </main>
 
+    <!-- Model Comparison Section with Toggle -->
+    <section class="card comparison-section" id="model-comparison-section">
+      <div class="comparison-header-row">
+        <div>
+          <h2 class="card-title">3. Model Comparison & Benchmarks</h2>
+          <p class="card-subtitle">Comprehensive evaluation across architectures on the shared stratified test split.</p>
+        </div>
+        <div class="comparison-actions">
+          <button id="btn-toggle-comparison" class="btn-toggle-comparison" aria-expanded="false">
+            <span id="toggle-comparison-text">Show model comparison</span>
+            <svg class="toggle-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <button id="btn-refresh-results" class="btn-refresh" title="Reload benchmarks">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+              <path d="M16 21h5v-5"></path>
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Collapsible Container -->
+      <div id="comparison-collapsible" class="comparison-collapsible hidden">
+        <!-- Best Model Highlight Banner -->
+        <div id="best-model-highlight" class="best-model-highlight hidden">
+          <div class="highlight-badge">Top Performing Model</div>
+          <h3 id="best-model-title" class="best-model-title">Loading...</h3>
+          <p id="best-model-reason" class="best-model-reason">Evaluating metrics...</p>
+        </div>
+
+        <!-- Comparison Notice -->
+        <div class="comparison-note">
+          <svg class="note-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span><strong>Statistical Context:</strong> The held-out test split contains 55 images (10 coconut, 33 date, 12 kithul). Because the coconut slice has only 10 images, differences of a few percent are not statistically decisive on their own.</span>
+        </div>
+
+        <!-- Comparison Table Container -->
+        <div class="table-responsive">
+          <table class="benchmark-table" id="benchmark-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>EfficientNet-B0</th>
+                <th>ResNet-18 <span class="rec-pill">Recommended</span></th>
+                <th>ResNet-50</th>
+              </tr>
+            </thead>
+            <tbody id="benchmark-tbody">
+              <tr>
+                <td colspan="4" class="table-loading">Loading benchmark results from backend...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Confusion Matrices Gallery -->
+        <div class="cm-gallery-wrapper">
+          <h3 class="cm-gallery-title">Test Confusion Matrices</h3>
+          <div class="cm-gallery-grid" id="cm-gallery-grid">
+            <!-- Dynamically populated confusion matrices -->
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Footer -->
     <footer class="app-footer">
-      <p>Kithul Palm Research Project • Powered by PyTorch & FastAPI</p>
+      <div class="footer-brand">
+        <img src="assets/kethaka-icon.svg" alt="Kethaka Mark" class="footer-icon-img">
+        <span class="footer-text">Kethaka • Kithul Palm Research Project</span>
+      </div>
       <div class="api-endpoint-badge">API: <code>http://127.0.0.1:8000</code></div>
     </footer>
   </div>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=4"></script>
 </body>
 
 </html>

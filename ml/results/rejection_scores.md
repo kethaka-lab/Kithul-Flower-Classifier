@@ -4,7 +4,7 @@
 > **Experimental Protocol**:
 > - Evaluated on **55 real TEST palm flower images** (from `ml/splits.json`) and **17 held-out JUNK test images** (from 50/50 split of `junk/`, seed=42).
 > - Centroids and shared regularized covariance ($\lambda = 10^{-4}$) were estimated **strictly on the TRAIN split**.
-> - All decision thresholds ($	au_{95}$, $	au_{90}$) were calibrated **strictly on real VAL images** (and the first junk half), then evaluated out-of-sample on real TEST images and the second junk half.
+> - All decision thresholds ($\tau_{95}$, $\tau_{90}$) were calibrated **strictly on real VAL images** (and the first junk half), then evaluated out-of-sample on real TEST images and the second junk half.
 
 ## 1. Single Rejection Score Comparison
 

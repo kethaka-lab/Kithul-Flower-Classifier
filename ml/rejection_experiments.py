@@ -337,23 +337,44 @@ def main():
                 "junk_test_rej": float((~j_pass).mean()),
             }
 
-    # Generate Markdown Table Report
+    # Generate Markdown Table Report and JSON summary
     md_file = results_dir / "rejection_scores.md"
-    generate_markdown(experiments, combined_results, best_model_id, md_file, len(test_paths), len(junk_test))
+    json_file = results_dir / "rejection_scores.json"
+    generate_reports(experiments, combined_results, best_model_id, md_file, json_file, len(test_paths), len(junk_test))
 
     with open(md_file, "r", encoding="utf-8") as f:
         print(f.read())
 
 
-def generate_markdown(experiments, combined_results, best_model_id, md_file, num_test, num_junk_test):
+def generate_reports(experiments, combined_results, best_model_id, md_file, json_file, num_test, num_junk_test):
+    # Prepare serializable json dict
+    clean_json = {
+        "metadata": {
+            "num_test_images": num_test,
+            "num_junk_test_images": num_junk_test,
+            "best_model": best_model_id,
+        },
+        "models": {},
+        "combined_rules_best_model": combined_results,
+    }
+
+    for mid, mdata in experiments.items():
+        clean_json["models"][mid] = {
+            "name": mdata["name"],
+            "results": mdata["results"],
+        }
+
+    with open(json_file, "w", encoding="utf-8") as f:
+        json.dump(clean_json, f, indent=2)
+
     lines = []
     lines.append("# Out-of-Distribution & Unfamiliarity Rejection Experiments")
     lines.append("")
     lines.append("> [!NOTE]")
     lines.append("> **Experimental Protocol**:")
     lines.append(f"> - Evaluated on **{num_test} real TEST palm flower images** (from `ml/splits.json`) and **{num_junk_test} held-out JUNK test images** (from 50/50 split of `junk/`, seed=42).")
-    lines.append("> - Centroids and shared regularized covariance ($\lambda = 10^{-4}$) were estimated **strictly on the TRAIN split**.")
-    lines.append("> - All decision thresholds ($\tau_{95}$, $\tau_{90}$) were calibrated **strictly on real VAL images** (and the first junk half), then evaluated out-of-sample on real TEST images and the second junk half.")
+    lines.append(r"> - Centroids and shared regularized covariance ($\lambda = 10^{-4}$) were estimated **strictly on the TRAIN split**.")
+    lines.append(r"> - All decision thresholds ($\tau_{95}$, $\tau_{90}$) were calibrated **strictly on real VAL images** (and the first junk half), then evaluated out-of-sample on real TEST images and the second junk half.")
     lines.append("")
 
     lines.append("## 1. Single Rejection Score Comparison")
